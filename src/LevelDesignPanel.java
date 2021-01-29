@@ -7,92 +7,125 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 public class LevelDesignPanel extends JPanel {
-    private long lastFrame;
-    private int frameCount, mouseX, currentMouseObject, mouseY, currentTile, currentObstruction, currentEnemy;
-
+    private long timeAtLastFrame;
+    private int currentMouseObject = 0, currentTile, currentObstruction, currentEnemy;
+    private Point cursorLocation = new Point(0,0);
     private TileManager tileManager;
     private ObstructionManager obstructionManager;
     private DoorManager doorManager;
     private EnemyManager enemyManager;
 
-    private boolean ctrl = false, alt = false,shift = false;
+    private boolean ctrl = false, alt = false;
     private boolean showHidden = true;
-    private LevelDesignPanel levelDesignPanel = this;
     private Player player;
     private int playerSpeed = 10;
-    Image healthHeart;
-    {
+    private Image healthHeart;
+
+
+    public LevelDesignPanel() {
+        addListeners();
+        focusCurrentPanel();
+        createManagers();
+        createPlayer();
+        loadHeartImage();
+        timeAtLastFrame = System.currentTimeMillis();
+    }
+
+    private void addListeners() {
+        addMouseListener(new MouseListenBoy(this));
+        addMouseMotionListener(new MouseMotionListenerBoy());
+        addKeyListener(new KeyListenBoy());
+        addMouseWheelListener(new MouseWheelListenerBoy());
+    }
+
+    private void focusCurrentPanel() {
+        setFocusable(true);
+        requestFocus();
+    }
+
+    private void createManagers() {
+        tileManager = new TileManager();
+        obstructionManager = new ObstructionManager();
+        doorManager = new DoorManager();
+        enemyManager = new EnemyManager();
+    }
+
+    private void createPlayer() {
+        player = new Player(Constants.SCREEN_WIDTH / 2, Constants.SCREEN_HEIGHT / 2, Constants.TILE_SIZE*5/4, Constants.TILE_SIZE*3/2, playerSpeed, new ArrayList(), 3);
+    }
+
+    private void loadHeartImage() {
         try {
-            healthHeart = ImageIO.read(new File("images/ui/healthHeart.png")).getScaledInstance(Constants.TILE_SIZE, Constants.TILE_SIZE,Image.SCALE_SMOOTH);
+            healthHeart = ImageIO.read(new File("images/ui/healthHeart.png")).getScaledInstance(Constants.TILE_SIZE, Constants.TILE_SIZE, Image.SCALE_SMOOTH);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private boolean swinging = false;
-
-    public LevelDesignPanel() {
-        addMouseListener(new MouseListenBoy());
-        addMouseMotionListener(new MouseMotionListenerBoy());
-        addKeyListener(new KeyListenBoy());
-        addMouseWheelListener(new MouseWheelListenerBoy());
-        setFocusable(true);
-        requestFocus();
-        tileManager = new TileManager();
-        obstructionManager = new ObstructionManager();
-        doorManager = new DoorManager();
-        enemyManager = new EnemyManager();
-        player = new Player(Constants.SCREEN_WIDTH / 2, Constants.SCREEN_HEIGHT / 2, Constants.TILE_SIZE*5/4, Constants.TILE_SIZE*3/2, playerSpeed, new ArrayList(), 3);
-        lastFrame = System.currentTimeMillis();
-        currentMouseObject = 0;
-
-    }
-
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
-        if (System.currentTimeMillis() - lastFrame > 1000.0 / Constants.MAX_FPS) {
-            tileManager.update();
-            enemyManager.update();
-            lastFrame = System.currentTimeMillis();
-            player.update(levelDesignPanel);
-            if(healthHeart != null) {
-                for(int i = 0; i < player.getHearts(); i++) {
+        updateManagersOnNewFrame();
 
-                }
-            }
-        }
         tileManager.draw(g);
-        if (currentMouseObject == 0) {
-            tileManager.drawOnCursor(g, currentTile, mouseX, mouseY);
-        }
-        obstructionManager.draw(g,showHidden);
-        if (currentMouseObject == 1) {
-            obstructionManager.drawOnCursor(g, currentObstruction, mouseX, mouseY);
-        }
-        doorManager.draw(g);
-        if (currentMouseObject == 2) {
-            doorManager.drawOnCursor(g, mouseX, mouseY);
-        }
-        enemyManager.draw(g);
-        if (currentMouseObject == 3) {
-            enemyManager.drawOnCursor(g, currentEnemy, mouseX, mouseY);
-        }
+        drawSelectedCursorObject(g);
         player.draw(g);
-        if(swinging) {
+
+        drawHealthHearts(g);
+
+        if(player.getSwingOnNextFrame()) {
             player.swing(g, obstructionManager, enemyManager);
-            swinging = ! swinging;
+            player.setSwingOnNextFrame(false);
         }
 
         g.setColor(Color.BLACK);
         if (showHidden) {
-            for (int i = 0; i <= Constants.SCREEN_WIDTH / Constants.TILE_SIZE; i++) {
-                g.drawLine(i * Constants.TILE_SIZE, 0, i * Constants.TILE_SIZE, Constants.SCREEN_HEIGHT / Constants.TILE_SIZE * Constants.TILE_SIZE);
-            }
-            for (int i = 0; i <= Constants.SCREEN_HEIGHT / Constants.TILE_SIZE; i++) {
-                g.drawLine(0, i * Constants.TILE_SIZE, Constants.SCREEN_WIDTH / Constants.TILE_SIZE * Constants.TILE_SIZE, i * Constants.TILE_SIZE);
-            }
+            showGridLines(g);
         }
         repaint();
+    }
+
+    private void updateManagersOnNewFrame() {
+        if (System.currentTimeMillis() - timeAtLastFrame > 1000.0 / Constants.MAX_FPS) {
+            tileManager.update();
+            enemyManager.update();
+            timeAtLastFrame = System.currentTimeMillis();
+            player.update(this);
+        }
+    }
+
+    private void drawHealthHearts(Graphics g) {
+        if(healthHeart != null) {
+            for(int i = 0; i < player.getHearts(); i++) {
+                g.drawImage(healthHeart, 20 + Constants.TILE_SIZE * i, Constants.SCREEN_HEIGHT / 50, null);
+            }
+        }
+    }
+
+    private void drawSelectedCursorObject(Graphics g) {
+        if (currentMouseObject == 0) {
+            tileManager.drawOnCursor(g, currentTile, (int)cursorLocation.getX(), (int)cursorLocation.getY());
+        }
+        obstructionManager.draw(g,showHidden);
+        if (currentMouseObject == 1) {
+            obstructionManager.drawOnCursor(g, currentObstruction, (int)cursorLocation.getX(), (int)cursorLocation.getY());
+        }
+        doorManager.draw(g);
+        if (currentMouseObject == 2) {
+            doorManager.drawOnCursor(g, (int)cursorLocation.getX(), (int)cursorLocation.getY());
+        }
+        enemyManager.draw(g);
+        if (currentMouseObject == 3) {
+            enemyManager.drawOnCursor(g, currentEnemy, (int)cursorLocation.getX(), (int)cursorLocation.getY());
+        }
+    }
+
+    private void showGridLines(Graphics g) {
+        for (int i = 0; i <= Constants.SCREEN_WIDTH / Constants.TILE_SIZE; i++) {
+            g.drawLine(i * Constants.TILE_SIZE, 0, i * Constants.TILE_SIZE, Constants.SCREEN_HEIGHT / Constants.TILE_SIZE * Constants.TILE_SIZE);
+        }
+        for (int i = 0; i <= Constants.SCREEN_HEIGHT / Constants.TILE_SIZE; i++) {
+            g.drawLine(0, i * Constants.TILE_SIZE, Constants.SCREEN_WIDTH / Constants.TILE_SIZE * Constants.TILE_SIZE, i * Constants.TILE_SIZE);
+        }
     }
 
     public TileManager getTileManager() {
@@ -119,80 +152,79 @@ public class LevelDesignPanel extends JPanel {
     }
 
     public class KeyListenBoy implements KeyListener {
+
         public void keyPressed(KeyEvent e) {
             int key = e.getKeyCode();
 
             if(key == 32) {
-               swinging = !swinging;
+               player.setSwingOnNextFrame(true);
             }
 
 
             if (key >= 49 && key <= 52) {
                 currentMouseObject = key - 49;
             }
-            if(key == 16){
-                shift = true;
+            if(key == KeyEvent.VK_SHIFT){
                 player.setSpeed(playerSpeed*5);
             }
-            if (key == 17) {
+            if (key == KeyEvent.VK_CONTROL) {
                 ctrl = true;
             }
-            if (key == 18) {
+            if (key == KeyEvent.VK_ALT) {
                 alt = true;
             }
 
-            if (key == 37) { //array left
+            if (key == KeyEvent.VK_LEFT) {
                 player.setRight(false);
             }
-            if (key == 38) { //array up
+            if (key == KeyEvent.VK_UP) {
                 player.setDown(false);
             }
-            if (key == 39) { //array right
+            if (key == KeyEvent.VK_RIGHT) {
                 player.setLeft(false);
             }
-            if (key == 40) {//arrow down
+            if (key == KeyEvent.VK_DOWN) {
                 player.setUp(false);
             }
 
-            if (key == 71) {//g
+            if (key == KeyEvent.VK_G) {//g
                 showHidden = !showHidden;
             }
-            if (key == 27) {//Escape
+            if (key == KeyEvent.VK_ESCAPE) {//Escape
                 System.exit(0);
             }
-            if(key == 192){
+            if(key == KeyEvent.VK_BACK_SLASH){
                 MainFrame.minimizeWindow();
             }
-            if(key==82&&currentMouseObject==1){ //r
+            if(key == KeyEvent.VK_R && currentMouseObject==1){ //r
                 obstructionManager.rotate(currentObstruction);
             }
-            else if(key==82&&currentMouseObject==0){
+            else if(key == KeyEvent.VK_R && currentMouseObject==0){
                 tileManager.rotate(currentTile);
             }
         }
 
         public void keyReleased(KeyEvent e) {
             int key = e.getKeyCode();
-            if(key == 16){
-                shift = false;
+            if(key == KeyEvent.VK_SHIFT){
                 player.setSpeed(playerSpeed);
             }
-            if (key == 17) {
+            if (key == KeyEvent.VK_CONTROL) {
                 ctrl = false;
             }
-            if (key == 18) {
+            if (key == KeyEvent.VK_ALT) {
                 alt = false;
             }
-            if (key == 37) {
+            if (key == KeyEvent.VK_LEFT) {
                 player.setRight(true);
             }
-            if (key == 38) {
+            if (key == KeyEvent.VK_UP) {
                 player.setDown(true);
             }
-            if (key == 39) {
+            if (key == KeyEvent.VK_RIGHT) {
                 player.setLeft(true);
             }
-            if (key == 40) {
+            if (key == KeyEvent.VK_DOWN) {
                 player.setUp(true);
             }
         }
@@ -203,6 +235,10 @@ public class LevelDesignPanel extends JPanel {
     }
 
     public class MouseListenBoy implements MouseListener {
+        private LevelDesignPanel levelDesignPanel;
+        public MouseListenBoy(LevelDesignPanel levelDesignPanel) {
+            this.levelDesignPanel = levelDesignPanel;
+        }
         public void mouseExited(MouseEvent e) {
 
         }
@@ -215,20 +251,20 @@ public class LevelDesignPanel extends JPanel {
         }
 
         public void mousePressed(MouseEvent e) {
-            mouseX = e.getX();
-            mouseY = e.getY();
+            cursorLocation.setLocation(e.getX(), e.getY());
+
             if (alt) {
                 doorManager.getDoors().get(0).enter(levelDesignPanel);
             } else if (ctrl && currentMouseObject == 1) {
-                obstructionManager.removeObstruction(mouseX, mouseY);
+                obstructionManager.removeObstruction((int)cursorLocation.getX(), (int)cursorLocation.getY());
             } else if (currentMouseObject == 0) {
-                tileManager.changeTile(currentTile, mouseY / Constants.TILE_SIZE, mouseX / Constants.TILE_SIZE);
+                tileManager.changeTile(currentTile, (int)cursorLocation.getY() / Constants.TILE_SIZE, (int)cursorLocation.getX() / Constants.TILE_SIZE);
             } else if (currentMouseObject == 1) {
-                obstructionManager.addObstruction(currentObstruction, mouseX, mouseY);
+                obstructionManager.addObstruction(currentObstruction, (int)cursorLocation.getX(), (int)cursorLocation.getY());
             } else if (currentMouseObject == 2) {
-                doorManager.addFirstDoor(levelDesignPanel,mouseY, mouseX);
+                doorManager.addFirstDoor(levelDesignPanel,(int)cursorLocation.getY(), (int)cursorLocation.getX());
             } else if(currentMouseObject == 3) {
-                enemyManager.addEnemy(currentEnemy, mouseX, mouseY);
+                enemyManager.addEnemy(currentEnemy, (int)cursorLocation.getX(), (int)cursorLocation.getY());
             }
         }
 
@@ -237,25 +273,25 @@ public class LevelDesignPanel extends JPanel {
     }
 
     public class MouseMotionListenerBoy implements MouseMotionListener {
+
         public void mouseDragged(MouseEvent e) {
-            mouseX = e.getX();
-            mouseY = e.getY();
+            cursorLocation.setLocation(e.getX(), e.getY());
             if (ctrl && currentMouseObject == 1) {
-                obstructionManager.removeObstruction(mouseX, mouseY);
+                obstructionManager.removeObstruction(cursorLocation.x, cursorLocation.y);
             } else if (currentMouseObject == 0) {
-                tileManager.changeTile(currentTile, mouseY / Constants.TILE_SIZE, mouseX / Constants.TILE_SIZE);
+                tileManager.changeTile(currentTile, cursorLocation.y / Constants.TILE_SIZE, cursorLocation.x / Constants.TILE_SIZE);
             } else if (currentMouseObject == 1) {
-                obstructionManager.addObstruction(currentObstruction, mouseX, mouseY);
+                obstructionManager.addObstruction(currentObstruction, cursorLocation.x, cursorLocation.y);
             }
         }
 
         public void mouseMoved(MouseEvent e) {
-            mouseX = e.getX();
-            mouseY = e.getY();
+            cursorLocation.setLocation(e.getX(), e.getY());
         }
     }
 
     public class MouseWheelListenerBoy implements MouseWheelListener {
+
         public void mouseWheelMoved(MouseWheelEvent e) {
             if (currentMouseObject == 0) {
                 currentTile = Math.abs((currentTile + (int) (e.getPreciseWheelRotation())) % tileManager.getImageCount());

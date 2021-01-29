@@ -15,6 +15,8 @@ public class Player{
     ArrayList<Image> images;
     private Sword sword;
     private int direction;
+    private boolean swingOnNextFrame;
+
     public Player(int x, int y,int width, int height,int speed, ArrayList inventory, int hearts){
 
         images = new ArrayList<>();
@@ -195,12 +197,21 @@ public class Player{
         this.x = x;
         this.y = y;
     }
+
     public void setRect(int x, int y){
         rect = new Rectangle(x+(int)(10*Constants.TILE_SIZE/48.0),(int)(y+(height*4/5.0)),width-(int)(20*Constants.TILE_SIZE/48.0),(int)(height*(1/5.0))-(int)(5*Constants.TILE_SIZE/48.0));
     }
 
     public void swing(Graphics g, ObstructionManager obm, EnemyManager enm) {
         this.sword.swing(this.direction, g, obm, enm);
+    }
+
+    public boolean getSwingOnNextFrame() {
+        return swingOnNextFrame;
+    }
+
+    public void setSwingOnNextFrame(boolean swingOnNextFrame) {
+        this.swingOnNextFrame = swingOnNextFrame;
     }
 
     public int getHearts() {
